@@ -1,0 +1,110 @@
+set.seed(2015)
+beetle = read.table("http://www.utstat.utoronto.ca/~radford/sta410/ass2-data",header=T,na.strings=TRUE)
+species_genus = c(1,1,1,2,2,3,3,4,4,4)
+species_probab = c(0.05,0.2,0.05,0.06,0.04,0.15,0.05,0.15,0.2,0.05)
+sd_log_mass = 0.08
+sd_log_ratio = 0.1
+k = 20
+initial_mu = c(rep(1,10))
+initial_nu = c(rep(1,10))
+initial_rho = c(0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5)
+n_species = 10
+n_genra = 4
+sd_mn = 2^2
+mean_mn=1
+
+beetleprobability = function(data,sd_log_mass,sd_log_ratio,mu,nu,rho){
+  p=matrix(0,nrow=nrow(data),ncol=n_species)
+  for (i in 1:nrow(data)){
+    for (j in 1: n_species){
+      p[i,j]=dnorm(log(data$mass[i]), mu[j], sd_log_mass) *
+        dnorm(log(data$ratio[i]), nu[j], sd_log_ratio) *
+        dbinom(data$swamp[i],1,rho[j])*species_probab[j]}}
+  p }
+update = function(data){
+  p=beetleprobability(beetle,sd_log_mass,sd_log_ratio,initial_mu,initial_nu,initial_rho)
+  for (i in 1:nrow(data)){
+    if (data$species[i]=="NA"){
+      if (data$genus[i] =="NA"){data$speciess[i]= sample((1:10),1,replace=TRUE,prob = p[i,1:10])}
+      if (data$genus[i] == "1"){data$speciess[i]= sample((1:3),1,replace=TRUE,prob = p[i,1:3])}
+      if (data$genus[i] == "2"){data$speciess[i]= sample((4:5),1,replace=TRUE,prob=p[i,4:5])}
+      if (data$genus[i] == "3"){data$speciess[i]= sample((6:7),1,replace=TRUE,prob=p[i,6:7])}
+      if (data$genus[i] == "4"){data$speciess[i]= sample((8:10),1,replace=TRUE,prob=p[i,8:10])}
+    }
+  }
+}
+
+#updatee = function(data){
+ # for (i in 1:nrow(data)) {
+  
+  #  if (!is.na(data$species[i]))
+   #   data$species[i] <- data$species[i]
+    #else if (!is.na(data$genus[i]))
+     # data$species[i] <- (1:n_species)[species_genus==data$genus[i]]
+    #else
+     # data$species[i] <- 1:n_species }}
+
+
+gibbs_re = function(data,k,initial_mu,initial_nu,initial_rho,species_probab){
+  mu= initial_mu; nu = initial_nu; rho = initial_rho
+  
+  results = list(mu = matrix(nrow=k,ncol=n_species),nu=matrix(nrow=k,ncol=n_species),rho=matrix(nrow=k,ncol=n_species))
+  for (t in 1:k){
+    beetleprobability = function(data,sd_log_mass,sd_log_ratio,mu,nu,rho){
+      p=matrix(0,nrow=nrow(data),ncol=n_species)
+      for (i in 1:nrow(data)){
+        for (j in 1: n_species){
+          p[i,j]=dnorm(log(data$mass[i]), mu[j], sd_log_mass) *
+            dnorm(log(data$ratio[i]), nu[j], sd_log_ratio) *
+            dbinom(data$swamp[i],1,rho[j])*species_probab[j]}}
+      p }
+    update = function(data){
+      p=beetleprobability(beetle,sd_log_mass,sd_log_ratio,mu,nu,rho)
+      for (i in 1:nrow(data)){
+        if (data$species[i]=="NA"){
+          if (data$genus[i] =="NA"){data$speciess[i]= sample((1:10),1,replace=TRUE,prob = p[i,1:10])}
+          if (data$genus[i] == "1"){data$speciess[i]= sample((1:3),1,replace=TRUE,prob = p[i,1:3])}
+          if (data$genus[i] == "2"){data$speciess[i]= sample((4:5),1,replace=TRUE,prob=p[i,4:5])}
+          if (data$genus[i] == "3"){data$speciess[i]= sample((6:7),1,replace=TRUE,prob=p[i,6:7])}
+          if (data$genus[i] == "4"){data$speciess[i]= sample((8:10),1,replace=TRUE,prob=p[i,8:10])}
+        }
+      }
+    }
+    update(data)
+    for (j in 1:10){
+      m = sum(data$speciess==j)
+      d = sum(data$swamp[data$speciess==j])
+      mu[j] = rnorm(1, (((mean_mn/sd_mn)+(sum(log(data$mass[data$speciess==j]))/sd_log_mass^2))/((mean_mn/sd_mn)+(m/sd_log_mass^2))),
+                    (1/sqrt((mean_mn/sd_mn)+(m/sd_log_mass^2))))
+      
+      nu[j] = rnorm(1, (((mean_mn/sd_mn)+(sum(log(data$ratio[data$speciess==j]))/sd_log_ratio^2))/((mean_mn/sd_mn)+(m/sd_log_ratio^2))),
+                    (1/sqrt((mean_mn/sd_mn)+(m/sd_log_ratio^2))))
+      rho[j] = rbeta(1,d+1,m-d+1)
+    }
+    results$mu[t,] =mu
+    results$nu[t,] =nu
+    results$rho[t,] =rho
+  }
+  results
+  
+}
+r=gibbs_re(beetle,k,initial_mu,initial_nu,initial_rho,species_probab)
+plot(NULL,xlim=c(1,k),ylim=range(r$nu))
+for (i in 1:ncol(r$nu)) lines (r$nu[,i],col="red")
+
+plot(NULL,xlim=c(1,nrow(r$mu)),ylim=range(r$mu))
+for (i in 1:ncol(r$mu)) lines (r$mu[,i],col="red")
+
+plot(NULL,xlim=c(1,nrow(r$rho)),ylim=range(r$rho))
+for (i in 1:ncol(r$rho)) lines (r$rho[,i],col="red")
+
+
+burn_in = 5
+print(rbind(colMeans(r$mu[(burn_in+1):k,]),
+            apply(r$mu[(burn_in+1):k,],2,sd)))
+
+print(rbind(colMeans(r$nu[(burn_in+1):k,]),
+            apply(r$nu[(burn_in+1):k,],2,sd)))
+
+print(rbind(colMeans(r$rho[(burn_in+1):k,]),
+            apply(r$rho[(burn_in+1):k,],2,sd))) 
